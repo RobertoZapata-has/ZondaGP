@@ -316,10 +316,13 @@ table.cls .sw{display:inline-block;width:4px;height:14px;border-radius:2px;verti
 .istep{display:flex;gap:10px;align-items:flex-start;background:#ffffff0c;border-radius:10px;padding:9px 12px;font-size:14px;line-height:1.35}
 .istep b{color:#ffcf5a}
 .istep .n{flex:0 0 24px;height:24px;border-radius:50%;background:#e10600;display:grid;place-items:center;font-weight:900;font-size:13px}
+
+#shareRoom.hidden{display:none!important}
 </style>
 </head>
 <body>
 <script src="autos.js" async></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" async></script>
 <div id="app">
   <div id="panelBg"></div>
   <div id="view">
@@ -432,16 +435,18 @@ table.cls .sw{display:inline-block;width:4px;height:14px;border-radius:2px;verti
       <div id="onStart">
         <button class="go" id="createRoom">CREAR SALA ▸</button>
         <div style="display:flex;gap:8px;margin-top:10px"><input class="inp" id="joinCode" maxlength="4" placeholder="CÓDIGO" style="text-transform:uppercase;letter-spacing:4px;text-align:center;margin:0"><button class="go alt" id="joinRoom" style="margin:0;width:auto;padding:0 18px">UNIRME</button></div>
+        <div class="note" id="onStartNote"></div>
       </div>
       <div id="onRoom" class="hidden">
         <div class="note" style="margin:0;opacity:.8">Código de la sala</div>
         <div class="code" id="roomCode">----</div>
+        <div id="shareRoom" class="hidden" style="display:flex;gap:8px;margin-bottom:8px"><button class="go alt" id="shareBtn2" style="margin:0">🔗 MANDAR LINK</button><a class="go alt" id="waRoom" target="_blank" rel="noopener" style="margin:0;text-align:center;text-decoration:none;flex:0 0 30%">WhatsApp</a></div>
         <div class="peers" id="peerList"></div>
         <button class="go alt" id="onGarage">🏎️ ELEGIR AUTO Y NÚMERO</button>
         <button class="go" id="onlineGo" disabled style="margin-top:8px">ESPERANDO AL AMIGO…</button>
         <div class="note" id="onRoomNote"></div>
       </div>
-      <div class="note">Tu amigo tiene que poder abrir este mismo juego (compartile el link desde el botón Compartir) y tocar "Unirme" con el código. El que se une elige número primero.</div>
+      <div class="note">Creá la sala y mandale el link a tu amigo: lo abre, pone su nombre y toca "Unirme". También puede escribir el código. Los dos necesitan internet. El que se une elige número primero.</div>
     </div>
   </div>
 </div>
@@ -1800,7 +1805,7 @@ $('mQuick').addEventListener('click',()=>{audioInit();openGarageFor('quick');});
 $('mTrain').addEventListener('click',()=>{audioInit();openGarageFor('training');});
 $('mFriend').addEventListener('click',()=>pane('mFriendPane'));
 $('mLocal').addEventListener('click',()=>pane('mLocalPane'));
-$('mOnline').addEventListener('click',()=>{if(!ROOM)return;pane('mOnlinePane');});
+$('mOnline').addEventListener('click',()=>{pane('mOnlinePane');});
 document.querySelectorAll('[data-back]').forEach(b=>b.addEventListener('click',()=>{if(ON.room)leaveRoom();pane('mMain');}));
 document.querySelectorAll('[data-laps]').forEach(b=>b.addEventListener('click',()=>{LAPS=+b.dataset.laps;document.querySelectorAll('[data-laps]').forEach(x=>x.classList.toggle('sel',x===b));}));
 document.querySelectorAll('[data-fmt]').forEach(b=>b.addEventListener('click',()=>{FMT=b.dataset.fmt;document.querySelectorAll('[data-fmt]').forEach(x=>x.classList.toggle('sel',x===b));ON.room&&ON.role==='host'&&ON.room.presence({cfg:{fmt:FMT,cat:FCAT}}).catch(()=>{});}));
@@ -1814,13 +1819,59 @@ $('localGo').addEventListener('click',()=>{audioInit();const n1=$('n1').value.tr
 
 /* ================= ONLINE (sala con código) ================= */
 let ROOM=null;const ON={room:null,role:null,name:'',code:'',remoteName:'',lastStart:null,remotePeer:null,cfg:{fmt:'laps2',cat:'m26'},ready:false};
-function setOnlineAvail(ok){$('mOnline').disabled=!ok;$('onlineSub').textContent=ok?'Cada uno en su cel, al mismo tiempo':'No disponible en esta vista (abrilo desde el navegador)';}
-setOnlineAvail(false);
-(async()=>{try{if(window.claude&&window.claude.use){const [r,t]=await Promise.all([window.claude.use('room').catch(()=>null),window.claude.use('tts').catch(()=>null)]);ROOM=r;TTS=t;}}catch(e){}setOnlineAvail(!!ROOM);})();
+/* --- conexión directa entre celulares (PeerJS), para la versión instalada --- */
+const PEER_PREFIX='zondagp-v1-';
+function peerJoin(code,role){
+  return new Promise((resolve,reject)=>{
+    if(!window.Peer){reject(new Error('sin PeerJS'));return;}
+    const mine={};let remote=null,conn=null,closed=false;const subs=[];
+    const snap=()=>{const ps=[{peer:'me',isMe:true,sameTab:true,kind:'viewer',presence:{...mine},by:null,guest:false,updatedAt:Date.now()}];
+      if(remote)ps.push({peer:'friend',isMe:false,sameTab:false,kind:'viewer',presence:remote,by:null,guest:false,updatedAt:Date.now()});return ps;};
+    const fire=()=>{const ps=snap();subs.forEach(fn=>{try{fn({peers:ps,joined:[],left:[],updated:[]});}catch(e){}});};
+    const send=()=>{if(conn&&conn.open){try{conn.send({t:'p',p:mine});}catch(e){}}};
+    const wire=c=>{conn=c;
+      c.on('open',()=>{send();fire();});
+      c.on('data',d=>{if(d&&d.t==='p'&&d.p&&typeof d.p==='object'){remote=d.p;fire();}});
+      c.on('close',()=>{conn=null;remote=null;fire();if(!closed)$('onRoomNote').textContent='Tu amigo se desconectó.';});
+      c.on('error',()=>{});};
+    const id=role==='host'?PEER_PREFIX+code.toLowerCase():undefined;
+    let peer;try{peer=new Peer(id,{debug:0});}catch(e){reject(e);return;}
+    let opened=false;
+    const api={name:code,
+      presence:async patch=>{for(const k in patch){if(patch[k]===null)delete mine[k];else mine[k]=patch[k];}send();fire();},
+      onPeers:fn=>{subs.push(fn);setTimeout(fire,0);return()=>{};},
+      leave:async()=>{closed=true;try{conn&&conn.close();}catch(e){}try{peer.destroy();}catch(e){}},
+      peers:snap,connected:()=>!!(conn&&conn.open),onConnection:()=>()=>{},emit:async()=>{},on:()=>()=>{}};
+    peer.on('open',()=>{opened=true;
+      if(role==='host'){peer.on('connection',c=>{if(conn&&conn.open){try{c.close();}catch(e){}return;}wire(c);});resolve(api);}
+      else{const c=peer.connect(PEER_PREFIX+code.toLowerCase(),{reliable:true});wire(c);
+        const to=setTimeout(()=>{if(!(conn&&conn.open)){try{peer.destroy();}catch(e){}reject(new Error('No encontré la sala '+code+'. Revisá el código.'));}},12000);
+        c.on('open',()=>{clearTimeout(to);resolve(api);});}});
+    peer.on('error',e=>{const t=e&&e.type;
+      if(t==='unavailable-id')reject(new Error('taken'));
+      else if(t==='peer-unavailable')reject(new Error('No encontré la sala '+code+'. Revisá el código.'));
+      else if(!opened)reject(new Error('No hay conexión con el servidor de salas.'));});
+    peer.on('disconnected',()=>{try{if(!closed)peer.reconnect();}catch(e){}});
+  });
+}
+const usePeer=()=>!ROOM;
+function setOnlineAvail(){const ok=!!ROOM||!!window.Peer;$('mOnline').disabled=false;$('onlineSub').textContent=ok?'Cada uno en su cel, al mismo tiempo, con un link':'Cada uno en su cel (necesita internet)';}
+setOnlineAvail();
+(async()=>{try{if(window.claude&&window.claude.use){const [r,t]=await Promise.all([window.claude.use('room').catch(()=>null),window.claude.use('tts').catch(()=>null)]);ROOM=r;TTS=t;}}catch(e){}setOnlineAvail();})();
+const URL_CODE=(()=>{try{const u=new URL(location.href);const c=(u.searchParams.get('sala')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return c.length===4?c:null;}catch(e){return null;}})();
+function roomLink(code){return PAGES_URL+'?sala='+code;}
 const CODE_CH='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 async function enterRoom(code,role){
   ON.name=($('onName').value.trim()||'Jugador').slice(0,12);ON.code=code;ON.role=role;ON.ready=false;
-  try{ON.room=await ROOM.join('lf-'+code.toLowerCase());}catch(e){$('onRoomNote').textContent='No se pudo entrar a la sala.';return;}
+  $('onStartNote').textContent=role==='host'?'Creando la sala…':'Buscando la sala '+code+'…';
+  try{
+    if(usePeer()){
+      let tries=0;
+      while(true){try{ON.room=await peerJoin(code,role);break;}catch(e){if(e.message==='taken'&&role==='host'&&tries++<4){code=newCode();ON.code=code;continue;}throw e;}}
+    }else ON.room=await ROOM.join('lf-'+code.toLowerCase());
+  }catch(e){$('onStartNote').textContent=(e&&e.message&&e.message!=='taken'?e.message:'No se pudo entrar a la sala.');ON.room=null;return;}
+  $('onStartNote').textContent='';
+  $('shareRoom').classList.toggle('hidden',role!=='host');$('waRoom').href='https://wa.me/?text='+encodeURIComponent(`¡Corramos en Zonda GP! Sala ${code}: ${roomLink(code)}`);
   $('onStart').classList.add('hidden');$('onRoom').classList.remove('hidden');$('roomCode').textContent=code;
   ON.cfg={fmt:FMT,cat:FCAT};
   ON.room.presence({n:ON.name,role,st:null,car:null,fin:null,num:null,ready:false,p:SETUP.p,s:SETUP.s,cfg:role==='host'?ON.cfg:null}).catch(()=>{});
@@ -1844,8 +1895,13 @@ function renderPeers(peers){
   if(S.mode==='duel-online'&&S.remote&&op){const c=op.presence.car;if(c){const r=S.remote;r.tx=c.x;r.td=c.d;r.v=c.v||0;r.rt=performance.now();if(!r.seen){r.dist=c.x;r.seen=true;}}if(op.presence.fin)S.remote.fin=op.presence.fin;}
 }
 function hostStart(){if(!ON.room||!ON.remotePeer)return;const id=Math.floor(Math.random()*1e9);const hold=rnd(.3,2.6);ON.lastStart=id;ON.room.presence({st:{id,hold,fmt:ON.cfg.fmt,cat:ON.cfg.cat},fin:null,car:null}).catch(()=>{});startOnlineRace(hold,ON.cfg.fmt,ON.cfg.cat);}
-$('createRoom').addEventListener('click',()=>{audioInit();let c='';for(let i=0;i<4;i++)c+=CODE_CH[Math.floor(Math.random()*CODE_CH.length)];enterRoom(c,'host');});
-$('joinRoom').addEventListener('click',()=>{audioInit();const c=$('joinCode').value.trim().toUpperCase();if(c.length!==4){$('joinCode').focus();return;}enterRoom(c,'guest');});
+function newCode(){let c='';for(let i=0;i<4;i++)c+=CODE_CH[Math.floor(Math.random()*CODE_CH.length)];return c;}
+$('createRoom').addEventListener('click',()=>{audioInit();if(!ROOM&&!window.Peer){$('onStartNote').textContent='Cargando la conexión… probá de nuevo en un segundo.';return;}enterRoom(newCode(),'host');});
+$('shareBtn2').addEventListener('click',async()=>{const link=roomLink(ON.code);const txt=`¡Corramos en Zonda GP! Sala ${ON.code}: ${link}`;
+  try{if(navigator.share){await navigator.share({title:'Zonda GP',text:txt,url:link});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  try{await navigator.clipboard.writeText(txt);$('onRoomNote').textContent='Link copiado. Pegáselo a tu amigo por WhatsApp.';}catch(e){$('onRoomNote').innerHTML='Mandale este link: <b style="user-select:text">'+link+'</b>';}});
+$('waRoom').addEventListener('pointerdown',()=>{const link=roomLink(ON.code);$('waRoom').href='https://wa.me/?text='+encodeURIComponent(`¡Corramos en Zonda GP! Sala ${ON.code}: ${link}`);});
+$('joinRoom').addEventListener('click',()=>{audioInit();if(!ROOM&&!window.Peer){$('onStartNote').textContent='Cargando la conexión… probá de nuevo en un segundo.';return;}const c=$('joinCode').value.trim().toUpperCase();if(c.length!==4){$('joinCode').focus();return;}enterRoom(c,'guest');});
 $('onlineGo').addEventListener('click',()=>{audioInit();if(ON.role==='host')hostStart();});
 $('onGarage').addEventListener('click',()=>{audioInit();if(!ON.room)return;
   const rp=ON.remotePeer&&ON.remotePeer.presence||{};const rn=rp.num?+rp.num:null;
@@ -1853,7 +1909,7 @@ $('onGarage').addEventListener('click',()=>{audioInit();if(!ON.room)return;
     onReady(st){LS.set('zonda_setup',st);ON.ready=true;ON.room.presence({num:st.num,p:st.p,s:st.s,ready:true}).catch(()=>{});backToLobby();}});
 });
 function backToLobby(){S.mode='menu';resetCommon();S.me=null;S.phase='menu';$('app').classList.add('idle');hideOverlays();pane('mOnlinePane');$('menu').classList.remove('hidden');updLobby();}
-function leaveRoom(){try{ON.room&&ON.room.leave();}catch(e){}ON.room=null;ON.role=null;ON.lastStart=null;ON.ready=false;$('onStart').classList.remove('hidden');$('onRoom').classList.add('hidden');}
+function leaveRoom(){$('shareRoom').classList.add('hidden');try{ON.room&&ON.room.leave();}catch(e){}ON.room=null;ON.role=null;ON.lastStart=null;ON.ready=false;$('onStart').classList.remove('hidden');$('onRoom').classList.add('hidden');}
 function onlineTick(dt){
   const P=S.me,r=S.remote;if(!r)return;
   if(r.tx!=null){const lag=Math.min(.35,(performance.now()-(r.rt||0))/1000);const target=r.tx+r.v*lag;r.dist=lerp(r.dist,target,1-Math.exp(-10*dt));r.d=lerp(r.d,r.td,1-Math.exp(-6*dt));}
@@ -1889,7 +1945,8 @@ function resize(){const w=Math.max(1,viewEl.clientWidth),h=Math.max(1,viewEl.cli
 addEventListener('resize',resize);try{new ResizeObserver(resize).observe(viewEl);}catch(e){}resize();
 let modelsReady=false;
 loadModels().then(ok=>{modelsReady=true;$('tload').textContent=ok.every(Boolean)?'':'Autos simples (no se pudieron cargar los modelos)';});
-$('title').addEventListener('click',()=>{audioInit();if(!modelsReady){$('tload').textContent='Un segundo, cargando autos…';return;}toMenu();});
+$('title').addEventListener('click',()=>{audioInit();if(!modelsReady){$('tload').textContent='Un segundo, cargando autos…';return;}toMenu();
+  if(URL_CODE){pane('mOnlinePane');$('joinCode').value=URL_CODE;$('onStartNote').innerHTML=`Te invitaron a la sala <b>${URL_CODE}</b>. Poné tu nombre y tocá <b>UNIRME</b>.`;}});
 $('timg').addEventListener('error',()=>{$('timg').style.display='none';$('title').insertAdjacentHTML('beforeend','<div style="position:relative;text-align:center"><div style="font:900 italic 64px Titillium Web">ZONDA <span style="background:#e10600;padding:0 10px">GP</span></div><div style="margin-top:16px;font-weight:900">TOCÁ PARA LARGAR</div></div>');});
 planWeather('dry',1,1,'m26');
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),1/20);const n=window.__fast||1;for(let i=0;i<n;i++)update(dt);renderer.render(scene,camera);}

@@ -7,7 +7,7 @@ Juego de Fórmula 1 para el celular, en el Autódromo Cordillera (Mendoza).
 - Dos categorías: Clásico (época Senna) y 2026
 - Garaje con colores, número, caja automática o manual
 - Modo entrenamiento con ayudas
-- Duelo con un amigo en el mismo cel (auto fantasma)
+- Duelo con un amigo: en el mismo cel (auto fantasma) u online, cada uno en su cel, mandando un link
 
 **Jugar:** https://robertozapata-has.github.io/zondagp/ — tocá "📲 Instalar en el cel" para tenerlo como app y jugar sin conexión.
 
