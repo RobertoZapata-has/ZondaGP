@@ -1964,7 +1964,7 @@ function onlineTick(dt){
 }
 
 /* ================= INSTALAR EN EL CEL ================= */
-const PAGES_URL='https://robertozapata-has.github.io/zondagp/';
+const PAGES_URL=/github\.io$/.test(location.hostname)?location.origin+location.pathname.replace(/index\.html$/,''):'https://robertozapata-has.github.io/ZondaGP/';
 let installEvt=null;
 const isStandalone=()=>matchMedia('(display-mode: fullscreen)').matches||matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);

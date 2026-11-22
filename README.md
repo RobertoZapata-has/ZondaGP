@@ -9,6 +9,6 @@ Juego de Fórmula 1 para el celular, en el Autódromo Cordillera (Mendoza).
 - Modo entrenamiento con ayudas
 - Duelo con un amigo: en el mismo cel (auto fantasma) u online, cada uno en su cel, mandando un link
 
-**Jugar:** https://robertozapata-has.github.io/zondagp/ — tocá "📲 Instalar en el cel" para tenerlo como app y jugar sin conexión.
+**Jugar:** https://robertozapata-has.github.io/ZondaGP/ — tocá "📲 Instalar en el cel" para tenerlo como app y jugar sin conexión.
 
 Autos modelados en Blender, motor 3D con Three.js.
