@@ -482,6 +482,7 @@ body:has(#lolli.green) #gas{box-shadow:0 0 0 4px #3dffa0,0 0 26px #3dffa0;animat
     <div class="tdots"><i></i><i></i><i></i><i></i><i></i></div>
   </div>
   <button class="tgo">TOCÁ PARA LARGAR</button>
+  <div style="position:absolute;right:10px;bottom:8px;font-size:10px;opacity:.55;color:#fff">v5.3</div>
   <div class="tsub">Autódromo Cordillera · Mendoza</div>
   <div id="tload">Cargando autos…</div>
 </div>
@@ -566,6 +567,7 @@ body:has(#lolli.green) #gas{box-shadow:0 0 0 4px #3dffa0,0 0 26px #3dffa0;animat
         <div class="note" style="margin:0;opacity:.8">Código de la sala</div>
         <div class="code" id="roomCode">----</div>
         <div id="shareRoom" class="hidden" style="display:flex;gap:8px;margin-bottom:8px"><button class="go alt" id="shareBtn2" style="margin:0">🔗 MANDAR LINK</button><a class="go alt" id="waRoom" target="_blank" rel="noopener" style="margin:0;text-align:center;text-decoration:none;flex:0 0 30%">WhatsApp</a></div>
+        <div id="roomUrl" class="hidden" style="font-size:11px;opacity:.8;word-break:break-all;margin:-2px 0 8px;user-select:all"></div>
         <div class="peers" id="peerList"></div>
         <button class="go alt" id="onGarage">🏎️ ELEGIR AUTO Y NÚMERO</button>
         <button class="go" id="onlineGo" disabled style="margin-top:8px">ESPERANDO AL AMIGO…</button>
@@ -1911,7 +1913,7 @@ async function enterRoom(code,role){
     }else ON.room=await ROOM.join('lf-'+code.toLowerCase());
   }catch(e){$('onStartNote').textContent=(e&&e.message&&e.message!=='taken'?e.message:'No se pudo entrar a la sala.');ON.room=null;return;}
   $('onStartNote').textContent='';
-  $('shareRoom').classList.toggle('hidden',role!=='host');$('waRoom').href='https://wa.me/?text='+encodeURIComponent(`¡Corramos en Zonda GP! Sala ${code}: ${roomLink(code)}`);
+  $('shareRoom').classList.toggle('hidden',role!=='host');$('roomUrl').classList.toggle('hidden',role!=='host');$('roomUrl').textContent=roomLink(code);$('waRoom').href='https://wa.me/?text='+encodeURIComponent(`¡Corramos en Zonda GP! Sala ${code}: ${roomLink(code)}`);
   $('onStart').classList.add('hidden');$('onRoom').classList.remove('hidden');$('roomCode').textContent=code;
   ON.cfg={fmt:FMT,cat:FCAT};
   ON.room.presence({n:ON.name,role,st:null,car:null,fin:null,num:null,ready:false,p:SETUP.p,s:SETUP.s,cfg:role==='host'?ON.cfg:null}).catch(()=>{});
